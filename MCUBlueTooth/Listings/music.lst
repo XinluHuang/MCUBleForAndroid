@@ -1,0 +1,81 @@
+C51 COMPILER V9.59.0.0   MUSIC                                                             12/18/2018 13:11:20 PAGE 1   
+
+
+C51 COMPILER V9.59.0.0, COMPILATION OF MODULE MUSIC
+OBJECT MODULE PLACED IN .\Objects\music.obj
+COMPILER INVOKED BY: C:\Keil_v5\C51\BIN\C51.EXE music.c LARGE OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listin
+                    -gs\music.lst) TABS(2) OBJECT(.\Objects\music.obj)
+
+line level    source
+
+   1          #include "myhead.h"
+   2          
+   3          int code tab[]={358,319,284,269,239,213,189,179,160,142,135,119,106,95,90,80,71,67,60,53,47};
+   4          
+   5          unsigned char code SONG_TONE[]={8,8,12,12,13,13,12,11,11,10,10,9,9,8,12,12,11,11,10,10,9,12,12,11,11,10,10
+             -,9,8,8,12,12,13,13,12,11,11,10,10,9,9,8,0};
+   6          //unsigned char code SONG_LONG[]={12,12,12,12,12,12,24,12,12,12,12,12,12,24,12,12,12,12,12,12,24,12,12,12,
+             -12,12,12,24,12,12,12,12,12,12,24,12,12,12,12,12,12,24,0};
+   7          unsigned char code SONG_LONG[]={10,10,10,10,10,10,20,10,10,10,10,10,10,20,10,10,10,10,10,10,20,10,10,10,10
+             -,10,10,20,10,10,10,10,10,10,20,10,10,10,10,10,10,20,0};
+   8          
+   9          //unsigned char code SONG_TONE[]={5,5,6,5,8,7,5,5,6,5,9,8,5,5,12,10,8,7,6,11,11,10,8,9,1,0};
+  10          //unsigned char code SONG_LONG[]={9,3,12,12,12,24,9,3,12,12,12,24,9,3,12,12,12,12,12,9,3,12,12,12,24,0};
+  11          
+  12          //unsigned char code SONG_TONE[]={13,12,15,15,16,16,17,15,12,13,12,15,15,16,16,17,15,13,12,15,15,16,16,17,
+             -15,12,13,12,15,15,16,15,0};
+  13          //unsigned char code SONG_LONG[]={18, 6, 24, 24, 24, 24, 24, 24, 24, 24, 6, 24, 24, 24, 24, 24, 48, 18, 6,
+             - 24, 24, 24, 24, 24, 24, 24, 18, 6, 24, 24, 24, 96, 0};
+  14          
+  15          
+  16          void Init_Buzzer(void)
+  17          { 
+  18   1        P5M0&=0xdf;
+  19   1        P5M1=0xdf;
+  20   1        Beep=1;
+  21   1      }
+  22            
+  23          void DelayMS(unsigned int x)
+  24          {
+  25   1        unsigned char t;
+  26   1        while(x--) 
+  27   1          for(t=0;t<120;t++);
+  28   1      }
+  29          
+  30          void PlayMusic(void)
+  31          {
+  32   1        unsigned int i=0,j,k;
+  33   1        while(SONG_LONG[i]!=0||SONG_TONE[i]!=0)
+  34   1        { //播放各个音符，SONG_LONG 为拍子长度
+  35   2          for(j=0;j<SONG_LONG[i]*64;j++)
+  36   2          {
+  37   3            Beep=~Beep;
+  38   3            //SONG_TONE 延时表决定了每个音符的频率
+  39   3            for(k=0;k<tab[SONG_TONE[i]-1];k++)
+  40   3            {
+  41   4              if(PlayFlag == 0)
+  42   4              {
+  43   5                k--;
+  44   5              }
+  45   4            }
+  46   3          }
+  47   2          DelayMS(10);
+  48   2          i++;
+  49   2        }
+C51 COMPILER V9.59.0.0   MUSIC                                                             12/18/2018 13:11:20 PAGE 2   
+
+  50   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    273    ----
+   CONSTANT SIZE    =    128    ----
+   XDATA SIZE       =   ----       2
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =      1    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

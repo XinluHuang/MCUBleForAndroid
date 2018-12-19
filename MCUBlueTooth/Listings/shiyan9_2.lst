@@ -1,0 +1,97 @@
+C51 COMPILER V9.59.0.0   SHIYAN9_2                                                         12/18/2018 16:34:19 PAGE 1   
+
+
+C51 COMPILER V9.59.0.0, COMPILATION OF MODULE SHIYAN9_2
+OBJECT MODULE PLACED IN .\Objects\shiyan9_2.obj
+COMPILER INVOKED BY: C:\Keil_v5\C51\BIN\C51.EXE shiyan9_2.c LARGE OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Li
+                    -stings\shiyan9_2.lst) TABS(2) OBJECT(.\Objects\shiyan9_2.obj)
+
+line level    source
+
+   1          #include "Serial_Port.H"
+   2          #include "Chinese_Font_Lib.H"
+   3          #include "OLED_SSD1306.H"
+   4          #include "DHT11.H"
+   5          #include "bluetooth.c"
+*** WARNING C235 IN LINE 115 OF segment.c: parameter 1: different types
+*** WARNING C280 IN LINE 26 OF bluetooth.c: 'index': unreferenced local variable
+*** WARNING C280 IN LINE 41 OF bluetooth.c: 'index': unreferenced local variable
+   6          
+   7          
+   8          int main()
+   9          {   
+  10   1        unsigned char Status;
+  11   1        unsigned int Convert_Result[5],Temperature_Value=0,Humidity_Value=0;
+  12   1        unsigned char HV_Array[8];
+  13   1        unsigned char TV_Array[8];
+  14   1        
+  15   1        
+  16   1        Init_Chinese_Font_Lib();  //汉字库初始化
+  17   1        Init_OLED_SSD1306();      //OLED显示屏初始化
+  18   1        Full_Image_Ram(0);        //OLED显示屏清除显示内容
+  19   1        
+  20   1        Init_DHT11();//初始化温湿度传感器
+  21   1        Write_HZ_ASC_String_TO_OLED_SSD1306(HZ_16x16,0,0,"当前温度:");    //用SST25VF032b中的字库
+  22   1        Write_HZ_ASC_String_TO_OLED_SSD1306(HZ_16x16,0,32,"当前湿度:");
+  23   1        Write_HZ_ASC_String_TO_OLED_SSD1306(HZ_16x16,88,2,"C");   //用SST25VF032b中的字库
+  24   1        Write_HZ_ASC_String_TO_OLED_SSD1306(HZ_16x16,88,32,"%");
+  25   1        Refresh_Image_Ram_To_OLED_Display();
+  26   1        
+  27   1        
+  28   1        blueToothInit();
+  29   1        initRGB();
+  30   1        initSegment();
+  31   1        initMotor();
+  32   1        initSegment();
+  33   1        PWM_Init();
+  34   1        Init_Buzzer();
+  35   1        
+  36   1        while(1)
+  37   1        {
+  38   2      
+  39   2          
+  40   2        if(DHT_ON){
+  41   3          Status=Read_DHT11_Convert_Value(Convert_Result);  //读DHT11温湿度值
+  42   3          if (Status==DHT11_OK)
+  43   3          {   
+  44   4            Humidity_Value=Convert_Result[0]; 
+  45   4            Temperature_Value=Convert_Result[2]; 
+  46   4            sendIntWith(Humidity_Value,'\0');//湿度
+  47   4            Delay_Ms(20);//保证传输完成
+  48   4            sendIntWith(Temperature_Value,'\1');//温度
+  49   4          } 
+  50   3          
+  51   3          Uint_To_Dec_String(Humidity_Value,HV_Array);  
+C51 COMPILER V9.59.0.0   SHIYAN9_2                                                         12/18/2018 16:34:19 PAGE 2   
+
+  52   3          Uint_To_Dec_String(Temperature_Value,TV_Array);
+  53   3          Write_HZ_ASC_String_TO_OLED_SSD1306(HZ_16x16,72,2,TV_Array);    
+  54   3          Write_HZ_ASC_String_TO_OLED_SSD1306(HZ_16x16,72,34,HV_Array);
+  55   3        }
+  56   2        
+  57   2        if(PlayFlag){
+  58   3          if(MUSIC1){
+  59   4            PlayMusic1();
+  60   4          }else if(MUSIC2){
+  61   4            PlayMusic2();
+  62   4          }else if(MUSIC3){
+  63   4            PlayMusic3();
+  64   4          }
+  65   3        }
+  66   2      
+  67   2        }
+  68   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   4689    ----
+   CONSTANT SIZE    =    270    ----
+   XDATA SIZE       =     70      71
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =      5    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  3 WARNING(S),  0 ERROR(S)

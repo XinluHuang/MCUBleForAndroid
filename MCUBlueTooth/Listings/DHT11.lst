@@ -1,0 +1,160 @@
+C51 COMPILER V9.59.0.0   DHT11                                                             12/18/2018 19:32:45 PAGE 1   
+
+
+C51 COMPILER V9.59.0.0, COMPILATION OF MODULE DHT11
+OBJECT MODULE PLACED IN .\Objects\DHT11.obj
+COMPILER INVOKED BY: C:\Keil_v5\C51\BIN\C51.EXE DHT11.c LARGE OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listin
+                    -gs\DHT11.lst) TABS(2) OBJECT(.\Objects\DHT11.obj)
+
+line level    source
+
+   1          #include "DHT11.H"    //头文件
+   2          
+   3          sbit DHT11_DATA=P4^6;
+   4          
+   5          //void Delay_Ms(unsigned int n);    //@11.0592MHz 
+   6          void Init_DHT11(void);
+   7          unsigned char Read_DHT11_Byte(unsigned char *Dtat_Pointer);
+   8          unsigned char Read_DHT11_Convert_Value(unsigned int *Data_Pointer);
+   9          void DHT11_Test(void);
+  10          
+  11          //void Delay_Ms(unsigned int n)   //@11.0592MHz
+  12          //{
+  13          //  unsigned char i, j;
+  14          //  unsigned int k;
+  15          //  for(k=0;k<n;k++)
+  16          //  {
+  17          //    _nop_();
+  18          //    _nop_();
+  19          //    _nop_();
+  20          //    i = 11;
+  21          //    j = 190;
+  22          //    do
+  23          //    {
+  24          //      while (--j);
+  25          //    } while (--i);
+  26          //  }
+  27          //}
+  28          
+  29          void Init_DHT11(void)
+  30          {
+  31   1        P4M0&=0xbf;
+  32   1        P4M1&=0xbf;
+  33   1        DHT11_DATA=1;
+  34   1      }
+  35          
+  36          
+  37          unsigned char Read_DHT11_Convert_Value(unsigned int *Data_Pointer)
+  38          {
+  39   1          unsigned char i,j;
+  40   1          unsigned char Temp_Data;
+  41   1          unsigned char Count_80us_L_Value,Count_80us_H_Value,Count_H_Value;
+  42   1          unsigned char Compare_50us_Value,Temp_Count_Value;
+  43   1      
+  44   1      
+  45   1          Count_80us_L_Value=0;
+  46   1          Count_80us_H_Value=0;
+  47   1          Delay_Ms(800);
+  48   1      
+  49   1          DHT11_DATA=0; //主机至少拉低18MS
+  50   1          Delay_Ms(20);
+  51   1      
+  52   1          
+  53   1          
+  54   1          DHT11_DATA=1;  //主机拉高20-40μS 
+C51 COMPILER V9.59.0.0   DHT11                                                             12/18/2018 19:32:45 PAGE 2   
+
+  55   1          Temp_Count_Value=0;
+  56   1          while(DHT11_DATA==1)//等待DHT11的低电平响应信号80μS
+  57   1          {
+  58   2              Temp_Count_Value++;
+  59   2              if (Temp_Count_Value==0)
+  60   2              return DHT11_ERR;
+  61   2          }
+  62   1          
+  63   1          //测量DHT11低电平响应信号80μS的计数值
+  64   1          while(DHT11_DATA==0)
+  65   1          {
+  66   2              Count_80us_L_Value++;
+  67   2              if (Count_80us_L_Value==0)
+  68   2              return DHT11_ERR;
+  69   2          }
+  70   1      
+  71   1          //测量DHT11高电平响应信号80μS的计数值
+  72   1          while(DHT11_DATA==1)
+  73   1          {
+  74   2              Count_80us_H_Value++;
+  75   2              if (Count_80us_H_Value==0)
+  76   2              return DHT11_ERR;
+  77   2          }
+  78   1          //Bit0开始50μS间隙
+  79   1      
+  80   1          
+  81   1          Temp_Data=Count_80us_L_Value+Count_80us_H_Value;//160us计数值
+  82   1          Compare_50us_Value=(Temp_Data>>2)+(Temp_Data>>4);//40us计数值+10us计数值=50us计数值
+  83   1          
+  84   1          for(i=0;i<5;i++)
+  85   1          {
+  86   2              Temp_Data=0;
+  87   2              for (j=0;j<8;j++)
+  88   2              {
+  89   3                  Temp_Data<<=1;
+  90   3                  Count_H_Value=0;
+  91   3                  
+  92   3                  Temp_Count_Value=0;
+  93   3                  while(DHT11_DATA==0)//等待50μS位间隙低电平结束
+  94   3                  {
+  95   4                      Temp_Count_Value++;
+  96   4                      if (Temp_Count_Value==0)
+  97   4                      return DHT11_ERR;
+  98   4                  }
+  99   3                  
+ 100   3                  while(DHT11_DATA==1)//测量DHT11数据位低电平计数值
+ 101   3                  {
+ 102   4                      Count_H_Value++;
+ 103   4                      if (Count_H_Value==0)
+ 104   4                      return DHT11_ERR;
+ 105   4                  }
+ 106   3                  if (Count_H_Value>Compare_50us_Value)
+ 107   3                  {
+ 108   4                      Temp_Data++;
+ 109   4                  }
+ 110   3              }
+ 111   2              *(Data_Pointer+i)=Temp_Data;
+ 112   2          }    
+ 113   1          
+ 114   1          Temp_Data=0;
+ 115   1          for(i=0;i<4;i++)
+ 116   1          {
+C51 COMPILER V9.59.0.0   DHT11                                                             12/18/2018 19:32:45 PAGE 3   
+
+ 117   2              Temp_Data+=*(Data_Pointer+i);
+ 118   2          }
+ 119   1          if (Temp_Data==*(Data_Pointer+4))
+ 120   1          {
+ 121   2              return DHT11_OK;
+ 122   2          }
+ 123   1          else
+ 124   1          {
+ 125   2             return DHT11_ERR;    
+ 126   2          }
+ 127   1      }
+ 128          
+ 129          
+ 130          
+ 131          
+ 132          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    325    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----       8
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

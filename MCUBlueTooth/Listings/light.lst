@@ -1,0 +1,156 @@
+C51 COMPILER V9.59.0.0   LIGHT                                                             12/18/2018 13:11:20 PAGE 1   
+
+
+C51 COMPILER V9.59.0.0, COMPILATION OF MODULE LIGHT
+OBJECT MODULE PLACED IN .\Objects\light.obj
+COMPILER INVOKED BY: C:\Keil_v5\C51\BIN\C51.EXE light.c LARGE OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listin
+                    -gs\light.lst) TABS(2) OBJECT(.\Objects\light.obj)
+
+line level    source
+
+   1          #include "music.c"
+   2          //定义PWM周期(最大值为32767)
+   3          #define CYCLE   6000L
+   4          sbit PWM5 = P4 ^ 2;
+   5          sbit PWM3 = P4 ^ 5;
+   6          sbit PWM4 = P4 ^ 4;
+   7          char LIGHT_FLAG=0;
+   8          int PWM_COUNT=0;
+   9          
+  10          void PWM_Init()
+  11          {
+  12   1        P4M1 = 0x00;
+  13   1        P4M0 |= 0x34;
+  14   1        P_SW2 |= 0x80;
+  15   1        PWM3CR = 0x08; //选择PWM3输出到P4.5,不中断
+  16   1        PWM4CR = 0x08; //选择PWM4输出到P4.4,不中断
+  17   1        PWM5CR = 0x08; //选择PWM5输出到P4.2,不中断
+  18   1        PWMCFG = 0x00; //配置PWM的输出初始为低电平
+  19   1        PWMCKS = 0x0f; //选择PWM的时钟为Fosc/(15+1)
+  20   1        PWMC = CYCLE;  //设置PWM周期
+  21   1        PWM3T1 = 0x0001;
+  22   1        PWM3T2 = 0;
+  23   1        PWM4T1 = 0x0001;
+  24   1        PWM4T2 = 0;
+  25   1        PWM5T1 = 0x0001;
+  26   1        PWM5T2 = 0;
+  27   1        PWMCR |= 0x80; //使能PWM模块
+  28   1        P_SW2 &= ~0x80;
+  29   1      
+  30   1      }
+  31          void pwm3(unsigned int Duty)//PWM3
+  32          {
+  33   1        if(Duty == 0)
+  34   1        {
+  35   2          //占空比为0时关闭PWM3
+  36   2          PWMCR &= ~0x02;
+  37   2          PWM3 = 0; //固定输出0
+  38   2        }
+  39   1        else
+  40   1        {
+  41   2          if(Duty == 100)
+  42   2          {
+  43   3            //占空比为100时关闭PWM3
+  44   3            PWMCR &= ~0x02;
+  45   3            PWM3 = 1; //固定输出1
+  46   3          }
+  47   2          else
+  48   2          {
+  49   3            P_SW2 |= 0x80;
+  50   3            PWM3T1 = 0x0001;
+  51   3            PWM3T2 = CYCLE * Duty / 100;
+  52   3            P_SW2 &= ~0x80;
+  53   3            PWMCR |= 0x02;
+  54   3          }
+C51 COMPILER V9.59.0.0   LIGHT                                                             12/18/2018 13:11:20 PAGE 2   
+
+  55   2        }
+  56   1      }
+  57          void pwm4(unsigned int  Duty)//PWM4
+  58          {
+  59   1        if(Duty == 0)
+  60   1        {
+  61   2          PWMCR &= ~0x04;
+  62   2          PWM4 = 0;
+  63   2        }
+  64   1        else
+  65   1        {
+  66   2          if (Duty == 100)
+  67   2          {
+  68   3            PWMCR &= ~0x04;
+  69   3            PWM4 = 1;
+  70   3          }
+  71   2          else
+  72   2          {
+  73   3            P_SW2 |= 0x80;
+  74   3            PWM4T1 = 0x0001;
+  75   3            PWM4T2 = CYCLE * Duty / 100;
+  76   3            P_SW2 &= ~0x80;
+  77   3            PWMCR |= 0x04;
+  78   3          }
+  79   2        }
+  80   1      }
+  81          
+  82          void pwm5( unsigned int Duty) //PWM5
+  83          {
+  84   1        if(Duty == 0)
+  85   1        {
+  86   2          PWMCR &= ~0x08;
+  87   2          PWM5 = 0;
+  88   2        }
+  89   1        else
+  90   1        {
+  91   2          if  (Duty == 100)
+  92   2          {
+  93   3            PWMCR &= ~0x08;
+  94   3            PWM5 = 1;
+  95   3          }
+  96   2          else
+  97   2          {
+  98   3            P_SW2 |= 0x80;
+  99   3            PWM5T1 = 0x0001;
+ 100   3            PWM5T2 = CYCLE * Duty / 100;
+ 101   3            P_SW2 &= ~0x80;
+ 102   3            PWMCR |= 0x08;
+ 103   3          }
+ 104   2        }
+ 105   1      }
+ 106          void lightOff(){
+ 107   1        LIGHT_FLAG=0;
+ 108   1        P4&=0xcb;
+ 109   1        pwm3(0);
+ 110   1        pwm4(0);
+ 111   1        pwm5(0);
+ 112   1      }
+ 113          void breath(){
+ 114   1        //[0,199]
+ 115   1        if(LIGHT_FLAG){
+ 116   2          if(PWM_COUNT<100){
+C51 COMPILER V9.59.0.0   LIGHT                                                             12/18/2018 13:11:20 PAGE 3   
+
+ 117   3            pwm3(PWM_COUNT) ;
+ 118   3            pwm4(100 - PWM_COUNT) ;
+ 119   3            pwm5(PWM_COUNT) ;
+ 120   3          }else{
+ 121   3            pwm3(200 - PWM_COUNT);
+ 122   3            pwm4(PWM_COUNT-100) ;
+ 123   3            pwm5(200 - PWM_COUNT) ;
+ 124   3          }
+ 125   2          PWM_COUNT++;
+ 126   2          PWM_COUNT%=200;
+ 127   2        }
+ 128   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    743    ----
+   CONSTANT SIZE    =    128    ----
+   XDATA SIZE       =      3       2
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =      1    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

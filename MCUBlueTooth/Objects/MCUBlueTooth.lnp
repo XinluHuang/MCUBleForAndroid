@@ -1,0 +1,7 @@
+".\Objects\Chinese_Font_Lib.obj",
+".\Objects\OLED_SSD1306.obj",
+".\Objects\DHT11.obj",
+".\Objects\Serial_Port.obj",
+".\Objects\main.obj" 
+TO ".\Objects\MCUBlueTooth" 
+PRINT(".\Listings\MCUBlueTooth.m51") RAMSIZE(256) 

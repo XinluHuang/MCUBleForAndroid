@@ -1,0 +1,524 @@
+C51 COMPILER V9.59.0.0   SERIAL_PORT                                                       12/18/2018 19:32:45 PAGE 1   
+
+
+C51 COMPILER V9.59.0.0, COMPILATION OF MODULE SERIAL_PORT
+OBJECT MODULE PLACED IN .\Objects\Serial_Port.obj
+COMPILER INVOKED BY: C:\Keil_v5\C51\BIN\C51.EXE Serial_Port.c LARGE OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\
+                    -Listings\Serial_Port.lst) TABS(2) OBJECT(.\Objects\Serial_Port.obj)
+
+line level    source
+
+   1          #include "Serial_Port.H"
+   2          #include <intrins.h>
+   3          
+   4          //变量定义
+   5          unsigned char xdata Recv_Buf[RECV_BUF_LEN]; //串行口1环形接收数据缓冲区
+   6          unsigned char xdata Trans_Buf[TRANS_BUF_LEN]; //串行口1环形发送数据缓冲区
+   7          unsigned char data Recv_In_Pointer, Recv_Out_Pointer; //串行口1环形接收缓冲区输入、输出指针。全局变量
+   8          unsigned char data Trans_In_Pointer, Trans_Out_Pointer; //串行口1环形发送缓冲区输入、输出指针。全局变量
+   9          unsigned char data Recv_Data, Trans_Data; //串行口1接收、发送缓冲器。全局变量
+  10          unsigned char bdata Uart_Flag; //串行口1工作标志
+  11          unsigned char data Recv_End; //串行口1接收完成标志。全局变量
+  12          unsigned char data Trans_End; //串行口1发送完成标志。全局变量
+  13          
+  14          
+  15          //函数定义
+  16          
+  17          unsigned char Ascii_To_Hex(unsigned char Ascii_Char);
+  18          void UartInit(void);
+  19          unsigned char Recv_2Byte(void);
+  20          unsigned int Recv_4Byte(void);
+  21          void Send_2Byte(unsigned char Temp_Send_Data);
+  22          void Send_4Byte(unsigned int Temp_Send_Data16);
+  23          void Send_6Byte(unsigned long Temp_Send_Data32);
+  24          void Send_8Byte(unsigned long Temp_Send_Data32);
+  25          
+  26          unsigned char Serial_In(void);
+  27          void Serial_Out(unsigned char Serial_Out_Data);
+  28          void String_Out(unsigned char *String_Pointer);
+  29          unsigned char Hex_To_Ascii(unsigned char Hex_Data);
+  30          
+  31          unsigned char getchar(void);
+  32          unsigned char _getkey(void);
+  33          void putchar(unsigned char Out_Char);
+  34          
+  35          
+  36          void Uchar_To_Hex_String(unsigned char Hex_Data,char *String_Pointer);
+  37          void Uint_To_Hex_String(unsigned int Hex_Data,char *String_Pointer);
+  38          void Ulong_To_Hex_String(unsigned long Hex_Data,char *String_Pointer);
+  39          void Hex_Array_To_Hex_String(char *Hex_Array_Pointer,char *String_Pointer,unsigned char Array_Len);
+  40          void Uint_To_Dec_String(unsigned int Hex_Data,char *String_Pointer);
+  41          
+  42          
+  43          unsigned char getchar(void)
+  44          {
+  45   1          unsigned char In_Char;
+  46   1          In_Char=Serial_In();
+  47   1          Serial_Out(In_Char);
+  48   1          return In_Char;
+  49   1      }
+  50          
+  51          unsigned char _getkey(void)
+  52          {
+  53   1          unsigned char In_Char;
+  54   1          In_Char=Serial_In();
+C51 COMPILER V9.59.0.0   SERIAL_PORT                                                       12/18/2018 19:32:45 PAGE 2   
+
+  55   1          return In_Char;
+  56   1      }
+  57          void putchar(unsigned char Out_Char)
+  58          {
+  59   1          Serial_Out(Out_Char);
+  60   1      }
+  61          
+  62          
+  63          
+  64          //串口1初始化
+  65          void UartInit(void)   //9600bps@11.0592MHz
+  66          {
+  67   1        PCON &= 0x7F;   //波特率不倍速
+  68   1        SCON = 0x50;    //8位数据,可变波特率
+  69   1        AUXR |= 0x40;   //定时器1时钟为Fosc,即1T
+  70   1        AUXR &= 0xFE;   //串口1选择定时器1为波特率发生器
+  71   1        TMOD &= 0x0F;   //清除定时器1模式位
+  72   1        TMOD |= 0x20;   //设定定时器1为8位自动重装方式
+  73   1        TL1 = 0xDC;   //设定定时初值
+  74   1        TH1 = 0xDC;   //设定定时器重装值
+  75   1        ET1 = 0;    //禁止定时器1中断
+  76   1        TR1 = 1;    //启动定时器1
+  77   1      
+  78   1          EA = 1; //开总中断   
+  79   1      
+  80   1          
+  81   1        TI=1;     //必须添加！！！！！！!
+  82   1      
+  83   1          Trans_End = 1;
+  84   1          Recv_End = 0;
+  85   1          Recv_In_Pointer = 0; //接收缓冲区输入、输出指针
+  86   1          Recv_Out_Pointer = Recv_In_Pointer;
+  87   1          Trans_In_Pointer = 0; //发送缓冲区输入、输出指针
+  88   1          Trans_In_Pointer = Trans_Out_Pointer;
+  89   1      }
+  90          
+  91          //*****************************************************************************
+  92          /******************************************************************************
+  93          函数名称:   serial_int 
+  94          功能描述:   串行口中断服务子程序
+  95          入口参数:   无
+  96          返回值:     无
+  97          调用函数:   无
+  98          全局变量：  trans_end;recv_end;
+  99          recv_in_point;recv_out_point;
+ 100          recv_buf[];
+ 101          trans_in_point;trans_out_point;
+ 102          trans_buf[];  
+ 103          局部变量:   无 
+ 104          ******************************************************************************/
+ 105          
+ 106          /*void Serial_Int(void) interrupt 4  //串行口1中断服务程序
+ 107          {
+ 108              if (_testbit_(RI))
+ 109              {
+ 110                  // 接收中断
+ 111                  Recv_Buf[Recv_In_Pointer] = SBUF; //将接收数据存入环形接收缓冲区
+ 112                  Recv_Data = Recv_Buf[Recv_In_Pointer];
+ 113                  Recv_In_Pointer = (Recv_In_Pointer + 1) % RECV_BUF_LEN;
+ 114                  Recv_End = 1; //置串行口接收完成标志
+ 115              }
+ 116              if (_testbit_(TI))
+C51 COMPILER V9.59.0.0   SERIAL_PORT                                                       12/18/2018 19:32:45 PAGE 3   
+
+ 117              {
+ 118                  // 发送中断
+ 119                  Trans_Out_Pointer = (Trans_Out_Pointer + 1) % TRANS_BUF_LEN;
+ 120                  if (Trans_In_Pointer == Trans_Out_Pointer)
+ 121                  {
+ 122                  //发送缓冲区中没有数据
+ 123                      Trans_End = 1; //置串行口发送完成标志
+ 124                  }
+ 125                  else
+ 126                  {
+ 127                  //发送缓冲区中有数据
+ 128                      SBUF = Trans_Buf[Trans_Out_Pointer]; //发送缓冲区中的数据
+ 129                      Trans_End = 0; //清串行口发送完成标志
+ 130                  }
+ 131              }
+ 132          }*/
+ 133          
+ 134          
+ 135          //从串行口输入一个字节
+ 136          unsigned char Serial_In(void)
+ 137          {
+ 138   1          unsigned char Temp_Data;
+ 139   1          
+ 140   1          while (Recv_Out_Pointer == Recv_In_Pointer){}//没有数据等待。
+ 141   1          
+ 142   1          Temp_Data = Recv_Buf[Recv_Out_Pointer]; //从接收缓冲区中取数据
+ 143   1          Recv_Out_Pointer = (Recv_Out_Pointer + 1) % RECV_BUF_LEN; //
+ 144   1          if (Recv_Out_Pointer == Recv_In_Pointer)
+ 145   1          {
+ 146   2              Recv_End = 0;
+ 147   2          }
+ 148   1      
+ 149   1          return Temp_Data;    //返回接收数据
+ 150   1      
+ 151   1      }
+ 152          
+ 153          /******************************************************************************
+ 154          函数名称:        Serial_Out 
+ 155          功能描述:        从串行口输出一个字节,如输出缓冲器中有数据则写入缓冲器;没有则直接发送
+ 156          入口参数:        待发送的数据
+ 157          返回值:       无
+ 158          调用函数:        无
+ 159          全局变量：    trans_end;trans_in_pointer;trans_out_pointer;trans_buf[];    
+ 160           ******************************************************************************/
+ 161          void Serial_Out(unsigned char Serial_Out_Data)
+ 162          {
+ 163   1      
+ 164   1          while (((Trans_In_Pointer + 1) % TRANS_BUF_LEN) == Trans_Out_Pointer)
+ 165   1          {
+ 166   2              //发送缓冲区满时等待
+ 167   2          }
+ 168   1          if (Trans_End == 1)
+ 169   1          {
+ 170   2              SBUF = Serial_Out_Data;
+ 171   2              Trans_Buf[Trans_In_Pointer] = Serial_Out_Data; //发送数据进入发送缓冲区(在中断程序发送数据)
+ 172   2              Trans_In_Pointer = (Trans_In_Pointer + 1) % TRANS_BUF_LEN; //发送数据加1
+ 173   2              Trans_End = 0; //清发送结束标志
+ 174   2          }
+ 175   1          else
+ 176   1          {
+ 177   2              Trans_Buf[Trans_In_Pointer] = Serial_Out_Data; //发送数据进入发送缓冲区(在中断程序发送数据)
+ 178   2              Trans_In_Pointer = (Trans_In_Pointer + 1) % TRANS_BUF_LEN; //发送数据加1
+C51 COMPILER V9.59.0.0   SERIAL_PORT                                                       12/18/2018 19:32:45 PAGE 4   
+
+ 179   2          }
+ 180   1      
+ 181   1      
+ 182   1      
+ 183   1      }
+ 184          //从串行口输出一个字符串
+ 185          void String_Out(unsigned char *String_Pointer)
+ 186          {
+ 187   1          while (1)
+ 188   1          {
+ 189   2              if (*String_Pointer != 0x00)
+ 190   2              {
+ 191   3                  Serial_Out(*String_Pointer);
+ 192   3                  String_Pointer++;
+ 193   3              }
+ 194   2              else
+ 195   2              {
+ 196   3                  break;
+ 197   3              }
+ 198   2          }
+ 199   1      }
+ 200          
+ 201          /******************************************************************************
+ 202          功能描述:   将Ascii字符转换成十六进制数
+ 203          入口参数:   Ascii字符        
+ 204          返回值:     十六进制数 
+ 205           ******************************************************************************/
+ 206          unsigned char Ascii_To_Hex(unsigned char Ascii_Char)
+ 207          {
+ 208   1          unsigned char Temp_data = 0xff;
+ 209   1          if (Ascii_Char >= '0' && Ascii_Char <= '9')
+ 210   1          {
+ 211   2              Temp_data = Ascii_Char - '0';
+ 212   2          }
+ 213   1          if (Ascii_Char >= 'a' && Ascii_Char <= 'f')
+ 214   1          {
+ 215   2              Temp_data = Ascii_Char - 'a' + 10;
+ 216   2          }
+ 217   1          if (Ascii_Char >= 'A' && Ascii_Char <= 'F')
+ 218   1          {
+ 219   2              Temp_data = Ascii_Char - 'A' + 10;
+ 220   2          }
+ 221   1      
+ 222   1          return Temp_data;
+ 223   1      }
+ 224          
+ 225          /******************************************************************************
+ 226          功能描述:   将数字0x00至0x0f转换成Ascii码，0x0a至0x0f转换成a至f(小写字母)
+ 227          入口参数:   待转换的十六进制数
+ 228          返回值:     返回待转换的十六进制数的Ascii码
+ 229           ******************************************************************************/
+ 230          unsigned char Hex_To_Ascii(unsigned char Hex_Data) //ok
+ 231          {
+ 232   1          unsigned char Ascii_Code;
+ 233   1          if (Hex_Data <= 9)
+ 234   1          {
+ 235   2              Ascii_Code = '0'+ Hex_Data ;
+ 236   2          }
+ 237   1          else
+ 238   1          {
+ 239   2              Ascii_Code = 'a'+ (Hex_Data -10); //小写字母(大写'A')
+ 240   2          }
+C51 COMPILER V9.59.0.0   SERIAL_PORT                                                       12/18/2018 19:32:45 PAGE 5   
+
+ 241   1          return Ascii_Code;
+ 242   1      }
+ 243          
+ 244          /******************************************************************************
+ 245          功能描述:   将一个字节转换成两个Ascii码,高位在前、低位在后从串行口输出
+ 246          入口参数:   待发送的字节
+ 247          返回值:     无
+ 248           ******************************************************************************/
+ 249          void Send_2Byte(unsigned char Temp_Send_Data) //ok
+ 250          {
+ 251   1          unsigned char Temp_Data;
+ 252   1      
+ 253   1          Temp_Data = Temp_Send_Data >> 4;
+ 254   1          Temp_Data = Hex_To_Ascii(Temp_Data);
+ 255   1          Serial_Out(Temp_Data);
+ 256   1      
+ 257   1          Temp_Data = Temp_Send_Data &0x0f;
+ 258   1          Temp_Data = Hex_To_Ascii(Temp_Data);
+ 259   1          Serial_Out(Temp_Data);
+ 260   1      }
+ 261          
+ 262          
+ 263          //*****************************************************************************
+ 264          /******************************************************************************
+ 265          功能描述:   将两个字节转换成四个Ascii码,高位在前、低位在后从串行口输出
+ 266          入口参数:   待发送的字节
+ 267          返回值:     无
+ 268           ******************************************************************************/
+ 269          void Send_4Byte(unsigned int Temp_Send_Data16) //ok
+ 270          {
+ 271   1          unsigned char Temp_Data;
+ 272   1      
+ 273   1          Temp_Data = (Temp_Send_Data16>>12)&0x0f;
+ 274   1          Temp_Data = Hex_To_Ascii(Temp_Data);
+ 275   1          Serial_Out(Temp_Data);
+ 276   1      
+ 277   1          Temp_Data = (Temp_Send_Data16>>8)&0x0f;
+ 278   1          Temp_Data = Hex_To_Ascii(Temp_Data);
+ 279   1          Serial_Out(Temp_Data);
+ 280   1      
+ 281   1          Temp_Data = (Temp_Send_Data16>>4)&0x0f;
+ 282   1          Temp_Data = Hex_To_Ascii(Temp_Data);
+ 283   1          Serial_Out(Temp_Data);
+ 284   1          
+ 285   1          Temp_Data = (Temp_Send_Data16>>0)&0x0f;
+ 286   1          Temp_Data = Hex_To_Ascii(Temp_Data);
+ 287   1          Serial_Out(Temp_Data);
+ 288   1      }
+ 289          
+ 290          /******************************************************************************
+ 291          功能描述:   将三个字节转换成六个Ascii码,高位在前、低位在后从串行口输出
+ 292          入口参数:   待发送的字节
+ 293          返回值:     无
+ 294           ******************************************************************************/
+ 295          void Send_6Byte(unsigned long Temp_Send_Data32) //ok
+ 296          {
+ 297   1          unsigned char Temp_Data;
+ 298   1      
+ 299   1          Temp_Data = (Temp_Send_Data32>>20)&0x0f;
+ 300   1          Temp_Data = Hex_To_Ascii(Temp_Data);
+ 301   1          Serial_Out(Temp_Data);
+ 302   1      
+C51 COMPILER V9.59.0.0   SERIAL_PORT                                                       12/18/2018 19:32:45 PAGE 6   
+
+ 303   1          Temp_Data = (Temp_Send_Data32>>16)&0x0f;
+ 304   1          Temp_Data = Hex_To_Ascii(Temp_Data);
+ 305   1          Serial_Out(Temp_Data);
+ 306   1      
+ 307   1          Temp_Data = (Temp_Send_Data32>>12)&0x0f;
+ 308   1          Temp_Data = Hex_To_Ascii(Temp_Data);
+ 309   1          Serial_Out(Temp_Data);
+ 310   1      
+ 311   1          Temp_Data = (Temp_Send_Data32>>8)&0x0f;
+ 312   1          Temp_Data = Hex_To_Ascii(Temp_Data);
+ 313   1          Serial_Out(Temp_Data);
+ 314   1      
+ 315   1          Temp_Data = (Temp_Send_Data32>>4)&0x0f;
+ 316   1          Temp_Data = Hex_To_Ascii(Temp_Data);
+ 317   1          Serial_Out(Temp_Data);
+ 318   1          
+ 319   1          Temp_Data = (Temp_Send_Data32>>0)&0x0f;
+ 320   1          Temp_Data = Hex_To_Ascii(Temp_Data);
+ 321   1          Serial_Out(Temp_Data);
+ 322   1      }
+ 323          
+ 324          //*****************************************************************************
+ 325          
+ 326          /******************************************************************************
+ 327          功能描述:   将4个字节转换成8个Ascii码,高位在前、低位在后从串行口输出
+ 328          入口参数:   待发送的字节
+ 329          返回值:     无
+ 330           ******************************************************************************/
+ 331          void Send_8Byte(unsigned long Temp_Send_Data32) //ok
+ 332          {
+ 333   1          unsigned char Temp_Data;
+ 334   1      
+ 335   1          Temp_Data = (Temp_Send_Data32>>28)&0x0f;
+ 336   1          Temp_Data = Hex_To_Ascii(Temp_Data);
+ 337   1          Serial_Out(Temp_Data);
+ 338   1      
+ 339   1          Temp_Data = (Temp_Send_Data32>>24)&0x0f;
+ 340   1          Temp_Data = Hex_To_Ascii(Temp_Data);
+ 341   1          Serial_Out(Temp_Data);
+ 342   1      
+ 343   1          Temp_Data = (Temp_Send_Data32>>20)&0x0f;
+ 344   1          Temp_Data = Hex_To_Ascii(Temp_Data);
+ 345   1          Serial_Out(Temp_Data);
+ 346   1      
+ 347   1          Temp_Data = (Temp_Send_Data32>>16)&0x0f;
+ 348   1          Temp_Data = Hex_To_Ascii(Temp_Data);
+ 349   1          Serial_Out(Temp_Data);
+ 350   1      
+ 351   1          Temp_Data = (Temp_Send_Data32>>12)&0x0f;
+ 352   1          Temp_Data = Hex_To_Ascii(Temp_Data);
+ 353   1          Serial_Out(Temp_Data);
+ 354   1      
+ 355   1          Temp_Data = (Temp_Send_Data32>>8)&0x0f;
+ 356   1          Temp_Data = Hex_To_Ascii(Temp_Data);
+ 357   1          Serial_Out(Temp_Data);
+ 358   1      
+ 359   1          Temp_Data = (Temp_Send_Data32>>4)&0x0f;
+ 360   1          Temp_Data = Hex_To_Ascii(Temp_Data);
+ 361   1          Serial_Out(Temp_Data);
+ 362   1          
+ 363   1          Temp_Data = (Temp_Send_Data32>>0)&0x0f;
+ 364   1          Temp_Data = Hex_To_Ascii(Temp_Data);
+C51 COMPILER V9.59.0.0   SERIAL_PORT                                                       12/18/2018 19:32:45 PAGE 7   
+
+ 365   1          Serial_Out(Temp_Data);
+ 366   1      }
+ 367          
+ 368          //*****************************************************************************
+ 369          
+ 370          
+ 371          
+ 372          
+ 373          /******************************************************************************
+ 374          功能描述:   从串行口接收两位Ascii字符(高位在前、低位在后),并转换成十六进制数返回
+ 375          入口参数:   无        
+ 376          返回值:     十六进制数 
+ 377           ******************************************************************************/
+ 378          unsigned char Recv_2Byte(void)
+ 379          {
+ 380   1          unsigned char Temp_Recv_Data, Temp_Data_H, Temp_Data_L;
+ 381   1      
+ 382   1          Temp_Data_H = Serial_In();
+ 383   1          Temp_Recv_Data = (Ascii_To_Hex(Temp_Data_H)<<4);
+ 384   1          Temp_Data_L = Serial_In();
+ 385   1          Temp_Recv_Data = Temp_Recv_Data|Ascii_To_Hex(Temp_Data_L);
+ 386   1      
+ 387   1          return Temp_Recv_Data;
+ 388   1      }
+ 389          
+ 390          
+ 391          /******************************************************************************
+ 392          功能描述:   从串行口接收4位Ascii字符(高位在前、低位在后),并转换成十六进制数返回
+ 393          入口参数:   无        
+ 394          返回值:     十六进制数 
+ 395           ******************************************************************************/
+ 396          unsigned int Recv_4Byte(void)
+ 397          {
+ 398   1          unsigned char Temp_Data;
+ 399   1          unsigned int Temp_Recv_Data=0;
+ 400   1      
+ 401   1          Temp_Data = Serial_In();
+ 402   1          Temp_Recv_Data =(Temp_Recv_Data|Ascii_To_Hex(Temp_Data))<<4;
+ 403   1          
+ 404   1          Temp_Data = Serial_In();
+ 405   1          Temp_Recv_Data =(Temp_Recv_Data|Ascii_To_Hex(Temp_Data))<<4;
+ 406   1      
+ 407   1          Temp_Data = Serial_In();
+ 408   1          Temp_Recv_Data =(Temp_Recv_Data|Ascii_To_Hex(Temp_Data))<<4;
+ 409   1      
+ 410   1          Temp_Data = Serial_In();
+ 411   1          Temp_Recv_Data =(Temp_Recv_Data|Ascii_To_Hex(Temp_Data))<<0;
+ 412   1          
+ 413   1          return Temp_Recv_Data;
+ 414   1          
+ 415   1      }
+ 416          
+ 417          
+ 418          void Uchar_To_Hex_String(unsigned char Hex_Data,char *String_Pointer)
+ 419          {
+ 420   1        unsigned char i,Temp_Data;
+ 421   1      
+ 422   1        for (i=0;i<2;i++)
+ 423   1        {
+ 424   2          Temp_Data=(Hex_Data>>((1-i)*4))&0x0f;
+ 425   2          *(String_Pointer+i) =Hex_To_Ascii(Temp_Data);
+ 426   2        }
+C51 COMPILER V9.59.0.0   SERIAL_PORT                                                       12/18/2018 19:32:45 PAGE 8   
+
+ 427   1        *(String_Pointer+i)=0x00; 
+ 428   1      }
+ 429          
+ 430          void Uint_To_Hex_String(unsigned int Hex_Data,char *String_Pointer)
+ 431          {
+ 432   1        unsigned char i,Temp_Data;
+ 433   1      
+ 434   1        for (i=0;i<4;i++)
+ 435   1        {
+ 436   2          Temp_Data=(Hex_Data>>((3-i)*4))&0x0f;
+ 437   2          *(String_Pointer+i) =Hex_To_Ascii(Temp_Data);
+ 438   2        }
+ 439   1        *(String_Pointer+i)=0x00; 
+ 440   1      }
+ 441          
+ 442          void Ulong_To_Hex_String(unsigned long Hex_Data,char *String_Pointer)
+ 443          {
+ 444   1        unsigned char i,Temp_Data;
+ 445   1      
+ 446   1        for (i=0;i<8;i++)
+ 447   1        {
+ 448   2          Temp_Data=(Hex_Data>>((7-i)*4))&0x0f;
+ 449   2          *(String_Pointer+i) =Hex_To_Ascii(Temp_Data);
+ 450   2        }
+ 451   1        *(String_Pointer+i)=0x00; 
+ 452   1      }
+ 453          
+ 454          void Hex_Array_To_Hex_String(char *Hex_Array_Pointer,char *String_Pointer,unsigned char Array_Len)
+ 455          {
+ 456   1        unsigned char i,Temp_Data;
+ 457   1      
+ 458   1        for (i=0;i<Array_Len;i++)
+ 459   1        {
+ 460   2          Temp_Data=*(Hex_Array_Pointer+i);
+ 461   2          *(String_Pointer+i*2) =Hex_To_Ascii(Temp_Data>>4);
+ 462   2          *(String_Pointer+i*2+1) =Hex_To_Ascii(Temp_Data&0x0f);
+ 463   2        }
+ 464   1        *(String_Pointer+Array_Len*2)=0x00; 
+ 465   1          
+ 466   1      }
+ 467          
+ 468          void Uint_To_Dec_String(unsigned int Hex_Data,char *String_Pointer)
+ 469          {
+ 470   1        unsigned int i,Temp_Data,Base;
+ 471   1        Base=10;
+ 472   1        for (i=0;i<2;i++)
+ 473   1        {
+ 474   2          Temp_Data=Hex_Data/Base;
+ 475   2          *(String_Pointer+i) =Hex_To_Ascii(Temp_Data);
+ 476   2          Hex_Data=(Hex_Data%Base);
+ 477   2          Base=Base/10;
+ 478   2        }
+ 479   1        *(String_Pointer+i)=0x00; 
+ 480   1      }
+ 481          
+ 482          
+ 483          
+ 484          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   1337    ----
+C51 COMPILER V9.59.0.0   SERIAL_PORT                                                       12/18/2018 19:32:45 PAGE 9   
+
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =    128      46
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =      9    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

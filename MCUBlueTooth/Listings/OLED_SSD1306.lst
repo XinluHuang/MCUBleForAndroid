@@ -1,0 +1,661 @@
+C51 COMPILER V9.59.0.0   OLED_SSD1306                                                      12/18/2018 19:32:44 PAGE 1   
+
+
+C51 COMPILER V9.59.0.0, COMPILATION OF MODULE OLED_SSD1306
+OBJECT MODULE PLACED IN .\Objects\OLED_SSD1306.obj
+COMPILER INVOKED BY: C:\Keil_v5\C51\BIN\C51.EXE OLED_SSD1306.C LARGE OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.
+                    -\Listings\OLED_SSD1306.lst) TABS(2) OBJECT(.\Objects\OLED_SSD1306.obj)
+
+line level    source
+
+   1          #include "OLED_SSD1306.H"
+   2          #include "Chinese_Font_Lib.H"
+   3          
+   4              
+   5          void Delay1ms(void);
+   6          void Delay_Ms(unsigned int Time_Ms_Val);
+   7          
+   8          void Init_OLED_SSD1306(void);
+   9          void Clear_OLED_Display(void);
+  10          void Full_Image_Ram(unsigned char Full_Data);
+  11          
+  12          void SSD1306_Spi_Write(unsigned char Write_Data,unsigned char Cmd_Dat_Flag);
+  13          void OLED_Set_Position(unsigned char x, unsigned char y);
+  14          unsigned char Read_Font_Bit_Form_Image_Ram(unsigned char x,unsigned char y);
+  15          void Refresh_Image_Ram_To_OLED_Display(void);
+  16          void Refresh_Part_Image_Ram_To_OLED_Display(unsigned char x,unsigned char y,unsigned char M,unsigned char 
+             -N);
+  17          
+  18          void Reverse_Image_Ram_Data(unsigned char x,unsigned char y,unsigned char M,unsigned char N);
+  19          void Write_Bmp_MxN_To_Image_Ram(unsigned char x,unsigned char y,unsigned char M,unsigned char N,unsigned c
+             -har *Bmp_Pointer);
+  20          void Write_Point_To_Image_Ram(unsigned char x, unsigned char y, unsigned char Font_Bit );
+  21          
+  22          void Write_HZ_ASC_String_TO_OLED_SSD1306(unsigned char Font_Num,unsigned char x,unsigned char y,unsigned c
+             -har *HZ_ASC_String_Pointer);
+  23          
+  24          
+  25          unsigned char  Image_Ram[8][128];//映像RAM
+  26          
+  27          /*
+  28            OLED模块0映像RAM    
+  29                Image_Ram[8][128] 
+  30                        |  |   |
+  31          页(Page)编号-+   |   +-列(Column)编号  
+  32                           |
+  33                            
+  34          
+  35          Column = 0   1   2 ............ 127
+  36                              
+  37               D0  D0  D0.............D0  
+  38               D1  D1  D1.............D1
+  39               D2  D2  D2.............D2
+  40          Page=0   D3  D3  D3.............D3   Image_Ram[*][0][0], Image_Ram[*][0][1], ..... , Image_Ram[*][0][127]  
+  41               D4  D4  D4.............D4
+  42               D5  D5  D5.............D5
+  43               D6  D6  D6.............D6
+  44               D7  D7  D7.............D7
+  45          
+  46               D0  D0  D0.............D0  
+  47               D1  D1  D1.............D1
+  48               D2  D2  D2.............D2
+  49          Page=1   D3  D3  D3.............D3   Image_Ram[*][1][0], Image_Ram[*][1][1], ..... , Image_Ram[*][1][127] 
+  50               D4  D4  D4.............D4
+  51               D5  D5  D5.............D5
+C51 COMPILER V9.59.0.0   OLED_SSD1306                                                      12/18/2018 19:32:44 PAGE 2   
+
+  52               D6  D6  D6.............D6
+  53               D7  D7  D7.............D7
+  54                    .   .   .     .        .
+  55                    .   .   .     .        .
+  56                    .   .   .     .        .
+  57               D0  D0  D0.............D0  
+  58               D1  D1  D1.............D1
+  59               D2  D2  D2.............D2
+  60          Page=7   D3  D3  D3.............D3   Image_Ram[*][7][0], Image_Ram[*][7][1], ..... , Image_Ram[*][7][127]  
+  61               D4  D4  D4.............D4
+  62               D5  D5  D5.............D5
+  63               D6  D6  D6.............D6
+  64               D7  D7  D7.............D7
+  65                    |   |   |              |
+  66                    |   |   |              |
+  67          Byte_Bits +---+---+--------------+
+  68          (字节的位)                  
+  69          
+  70          
+  71          坐标X、Y与页Page、列Column及字节位Byte_Bits之间的关系： 
+  72          
+  73          Column = X  ; Page = Y/8 ;  Byte_Bits = Y%8 ;  
+  74          
+  75          X = Column ; Y = Page*8 + Byte_Bits ;
+  76          
+  77          */
+  78          
+  79          void Delay_Ms(unsigned int Time_Ms_Val)
+  80          {
+  81   1          while (Time_Ms_Val!=0)
+  82   1          {
+  83   2              Delay1ms();   
+  84   2              Time_Ms_Val--;
+  85   2          }
+  86   1      } 
+  87          
+  88          
+  89          void Delay1ms(void)   //@11.0592MHz
+  90          {
+  91   1        unsigned char i, j;
+  92   1      
+  93   1        _nop_();
+  94   1        _nop_();
+  95   1        _nop_();
+  96   1        i = 11;
+  97   1        j = 190;
+  98   1        do
+  99   1        {
+ 100   2          while (--j);
+ 101   2        } while (--i);
+ 102   1      }
+ 103          
+ 104          
+ 105          
+ 106          
+ 107          //向指定OLED模块（SSD1306）写入一个字节。
+ 108          //Write_Data:要写入的数据/命令
+ 109          //Cmd_Dat_Flag:数据/命令标志 0,表示命令;1,表示数据;
+ 110          void SSD1306_Spi_Write(unsigned char Write_Data,unsigned char Cmd_Dat_Flag)
+ 111          {
+ 112   1          unsigned char i;
+ 113   1      
+C51 COMPILER V9.59.0.0   OLED_SSD1306                                                      12/18/2018 19:32:44 PAGE 3   
+
+ 114   1          if(Cmd_Dat_Flag)
+ 115   1          {
+ 116   2              OLED_DC=1;
+ 117   2          }
+ 118   1          else
+ 119   1          {
+ 120   2              OLED_DC=0;
+ 121   2          }
+ 122   1          OLED_CS = 0;
+ 123   1          for ( i = 0; i < 8; i++ )
+ 124   1          {
+ 125   2              OLED_SCLK = 0;
+ 126   2              if (Write_Data&0x80)
+ 127   2              {
+ 128   3                  OLED_SDIN =1;
+ 129   3              }
+ 130   2              else
+ 131   2              {
+ 132   3                  OLED_SDIN =0;
+ 133   3              }
+ 134   2              Write_Data<<=1;
+ 135   2              OLED_SCLK = 1;
+ 136   2          }
+ 137   1          OLED_CS = 1; 
+ 138   1          OLED_DC=1;
+ 139   1      }
+ 140          
+ 141          //OLED模块数据起始坐标
+ 142          void OLED_Set_Position(unsigned char x, unsigned char y)
+ 143          {
+ 144   1          SSD1306_Spi_Write(0xb0+y,OLED_CMD);
+ 145   1          SSD1306_Spi_Write(((x&0xf0)>>4)|0x10,OLED_CMD);
+ 146   1          SSD1306_Spi_Write((x&0x0f)|0x01,OLED_CMD);
+ 147   1      }
+ 148          
+ 149          
+ 150          //填充OLED模块映像RAM
+ 151          void Full_Image_Ram(unsigned char Full_Data)
+ 152          {
+ 153   1          unsigned char Page, Colunm;
+ 154   1          for ( Page = 0; Page < 8; Page++ )
+ 155   1          {
+ 156   2              for ( Colunm = 0; Colunm < 128; Colunm++ )
+ 157   2              {
+ 158   3                 Image_Ram[Page][Colunm]=Full_Data;
+ 159   3              }
+ 160   2          }
+ 161   1      }
+ 162          
+ 163          //取反OLED模块映像RAM中的数据，作用是反显
+ 164          void Reverse_Image_Ram_Data(unsigned char x,unsigned char y,unsigned char M,unsigned char N)
+ 165          {
+ 166   1          unsigned char i,j,Font_Bit;
+ 167   1        for (i=0;i<M;i++)
+ 168   1        {
+ 169   2          for (j=0;j<N;j++)
+ 170   2          {
+ 171   3            Font_Bit=Read_Font_Bit_Form_Image_Ram(x+j,y+i);
+ 172   3            Font_Bit=Font_Bit^0x01;//数据取反 
+ 173   3            Write_Point_To_Image_Ram(x+j,y+i,Font_Bit);
+ 174   3          }
+ 175   2        }
+C51 COMPILER V9.59.0.0   OLED_SSD1306                                                      12/18/2018 19:32:44 PAGE 4   
+
+ 176   1      }
+ 177          
+ 178          //清指定OLED模块屏幕显示!（不清OLED模块映像RAM）
+ 179          void Clear_OLED_Display()
+ 180          {
+ 181   1          unsigned char i,n;
+ 182   1          for(i=0; i<8; i++)
+ 183   1          {
+ 184   2              SSD1306_Spi_Write (0xb0+i,OLED_CMD);    //设置页地址（0~7）
+ 185   2              SSD1306_Spi_Write (0x00,OLED_CMD);      //设置显示位置—列低地址
+ 186   2              SSD1306_Spi_Write (0x10,OLED_CMD);      //设置显示位置—列高地址
+ 187   2              for(n=0; n<128; n++)
+ 188   2              {
+ 189   3                  SSD1306_Spi_Write(0,OLED_DATA);
+ 190   3              }
+ 191   2          } //更新显示
+ 192   1      }
+ 193          
+ 194          
+ 195          /*-----IO口配置-------|-----------GPIOx_CRH/L----------|---GPIOx_ODR----+
+ 196          |      功能说明       |       | CNFi[1:0] | MODEi[1:0] |                |
+ 197          |   x=A B C D E F G   |       |   |    |  |   |    |   |       Di       |
+ 198          |   i=0 1 2 ... 15    |       | Di+3 Di+2 | Di+1 Di+0  |                |
+ 199          |---------------------+-------+-----------+------------+----------------|
+ 200          |通用输出      推挽   | 0x3*  |   0    0  | 00:输入    |  0/1(实际输出) |
+ 201          |通用输出      开漏   | 0x7*  |   0    1  | 01:输出10M |  0/1(实际输出) | 
+ 202          |复用输出      推挽   | 0xb*  |   1    0  | 10:输出2M  |     不使用     |
+ 203          |复用输出      开漏   | 0xf*  |   1    1  | 11:输出50M*|     不使用     |
+ 204          |  输入      模拟输入 | 0x0   |   0    0  |   0    0   |     不使用     |
+ 205          |  输入      浮空输入 | 0x4   |   0    1  |   0    0   |     不使用     |
+ 206          |  输入      下拉输入 | 0x8   |   1    0  |   0    0   |  0(配置下拉)   |
+ 207          |  输入      上拉输入 | 0x8   |   1    0  |   0    0   |  1(配置上拉)   |
+ 208          +------IO口配置-------|-----------GPIOx_CRH/L----------|---GPIOx_ODR---*/
+ 209          void Init_OLED_SSD1306(void)
+ 210          {
+ 211   1          P6M0&=0xe0;
+ 212   1          P6M1&=0xe0;
+ 213   1          
+ 214   1          OLED_CS = 1; 
+ 215   1          OLED_RST=1;
+ 216   1          Delay_Ms(100);
+ 217   1          OLED_RST=0;
+ 218   1          Delay_Ms(100);
+ 219   1          OLED_RST=1;
+ 220   1          
+ 221   1          OLED_CS = 0;
+ 222   1          SSD1306_Spi_Write(0xAE,OLED_CMD);//--turn off oled panel
+ 223   1          SSD1306_Spi_Write(0x00,OLED_CMD);//---set low column address
+ 224   1          SSD1306_Spi_Write(0x10,OLED_CMD);//---set high column address
+ 225   1          SSD1306_Spi_Write(0x40,OLED_CMD);//--set start line address  Set Mapping RAM Display Start Line (0x00~
+             -0x3F)
+ 226   1          SSD1306_Spi_Write(0x81,OLED_CMD);//--set contrast control register
+ 227   1          SSD1306_Spi_Write(0xCF,OLED_CMD);// Set SEG Output Current Brightness
+ 228   1          SSD1306_Spi_Write(0xA1,OLED_CMD);//--Set SEG/Column Mapping     0xa0左右反置 0xa1正常
+ 229   1          SSD1306_Spi_Write(0xC8,OLED_CMD);//Set COM/Row Scan Direction   0xc0上下反置 0xc8正常
+ 230   1          SSD1306_Spi_Write(0xA6,OLED_CMD);//--set normal display
+ 231   1          SSD1306_Spi_Write(0xA8,OLED_CMD);//--set multiplex ratio(1 to 64)
+ 232   1          SSD1306_Spi_Write(0x3f,OLED_CMD);//--1/64 duty
+ 233   1          SSD1306_Spi_Write(0xD3,OLED_CMD);//-set display offset  Shift Mapping RAM Counter (0x00~0x3F)
+ 234   1          SSD1306_Spi_Write(0x00,OLED_CMD);//-not offset
+ 235   1          SSD1306_Spi_Write(0xd5,OLED_CMD);//--set display clock divide ratio/oscillator frequency
+ 236   1          SSD1306_Spi_Write(0x80,OLED_CMD);//--set divide ratio, Set Clock as 100 Frames/Sec
+C51 COMPILER V9.59.0.0   OLED_SSD1306                                                      12/18/2018 19:32:44 PAGE 5   
+
+ 237   1          SSD1306_Spi_Write(0xD9,OLED_CMD);//--set pre-charge period
+ 238   1          SSD1306_Spi_Write(0xF1,OLED_CMD);//Set Pre-Charge as 15 Clocks & Discharge as 1 Clock
+ 239   1          SSD1306_Spi_Write(0xDA,OLED_CMD);//--set com pins hardware configuration
+ 240   1          SSD1306_Spi_Write(0x12,OLED_CMD);
+ 241   1          SSD1306_Spi_Write(0xDB,OLED_CMD);//--set vcomh
+ 242   1          SSD1306_Spi_Write(0x40,OLED_CMD);//Set VCOM Deselect Level
+ 243   1          SSD1306_Spi_Write(0x20,OLED_CMD);//-Set Page Addressing Mode (0x00/0x01/0x02)
+ 244   1          SSD1306_Spi_Write(0x02,OLED_CMD);
+ 245   1          SSD1306_Spi_Write(0x8D,OLED_CMD);//--set Charge Pump enable/disable
+ 246   1          SSD1306_Spi_Write(0x14,OLED_CMD);//--set(0x10) disable
+ 247   1          SSD1306_Spi_Write(0xA4,OLED_CMD);// Disable Entire Display On (0xa4/0xa5)
+ 248   1          SSD1306_Spi_Write(0xA6,OLED_CMD);// Disable Inverse Display On (0xa6/a7)
+ 249   1          SSD1306_Spi_Write(0xAF,OLED_CMD);//display ON
+ 250   1      
+ 251   1          Clear_OLED_Display();
+ 252   1          OLED_Set_Position(0,0);
+ 253   1          OLED_CS = 1; 
+ 254   1      
+ 255   1      }
+ 256          
+ 257          //将映像RAM的内容送OLED模块显示
+ 258          void Refresh_Image_Ram_To_OLED_Display(void)
+ 259          {
+ 260   1          unsigned char Page, Colunm;
+ 261   1          for ( Page = 0; Page < 8; Page++ )
+ 262   1          {
+ 263   2              OLED_DC = 0;
+ 264   2              OLED_CS = 0;
+ 265   2              SSD1306_Spi_Write(0xb0 + Page ,OLED_CMD); 
+ 266   2              SSD1306_Spi_Write(0x00, OLED_CMD); //设置显示位置—列低4位地址
+ 267   2              SSD1306_Spi_Write(0x10, OLED_CMD); //设置显示位置—列高4位地址
+ 268   2              OLED_DC = 1;
+ 269   2              for ( Colunm = 0; Colunm < 128; Colunm++ )
+ 270   2              {
+ 271   3                  SSD1306_Spi_Write(Image_Ram[Page][Colunm],OLED_DATA);
+ 272   3              }
+ 273   2              OLED_CS = 1; 
+ 274   2          }
+ 275   1      }
+ 276          //将映像RAM的内容送OLED模块显示
+ 277          void Refresh_Part_Image_Ram_To_OLED_Display(unsigned char x,unsigned char y,unsigned char M,unsigned char 
+             -N)
+ 278          {
+ 279   1          unsigned char Page=y/8,Page_Max=(y+M+7)/8; 
+ 280   1          unsigned char Colunm=x,Colunm_Max=x+N;
+ 281   1          unsigned char xl=x&0x0f,xh=(x>>4)|0x10;
+ 282   1          for ( Page = y/8; Page < Page_Max; Page++ )
+ 283   1          {
+ 284   2              OLED_DC = 0;
+ 285   2              OLED_CS = 0;
+ 286   2              SSD1306_Spi_Write(0xb0 + Page ,OLED_CMD); 
+ 287   2              SSD1306_Spi_Write(xl, OLED_CMD); //设置显示位置—列低4位地址
+ 288   2              SSD1306_Spi_Write(xh, OLED_CMD); //设置显示位置—列高4位地址
+ 289   2              OLED_DC = 1;
+ 290   2              for ( Colunm = x; Colunm < Colunm_Max; Colunm++ )
+ 291   2              {
+ 292   3                  SSD1306_Spi_Write(Image_Ram[Page][Colunm],OLED_DATA);
+ 293   3              }
+ 294   2              OLED_CS = 1; 
+ 295   2          }
+ 296   1      }
+ 297          
+C51 COMPILER V9.59.0.0   OLED_SSD1306                                                      12/18/2018 19:32:44 PAGE 6   
+
+ 298          //在映像RAM中写一个点（Font_Bit=0、1均可），坐标为 x,y
+ 299          void Write_Point_To_Image_Ram(unsigned char x, unsigned char y, unsigned char Font_Bit )
+ 300          {
+ 301   1          unsigned char Font_Byte_Data, Font_Byte_Bits;
+ 302   1          unsigned char Page, Column;
+ 303   1      
+ 304   1          Column = x % 128;
+ 305   1          Page =( y / 8)%8;
+ 306   1          Font_Byte_Bits = y % 8;
+ 307   1      
+ 308   1          Font_Byte_Data =Image_Ram[Page][Column];
+ 309   1      
+ 310   1          if ( Font_Bit == 1 )
+ 311   1          {
+ 312   2              Font_Byte_Data = Font_Byte_Data | ( 0x01 << Font_Byte_Bits );
+ 313   2          }
+ 314   1          else
+ 315   1          {
+ 316   2              Font_Byte_Data = Font_Byte_Data & ( ( 0x01 << Font_Byte_Bits ) ^ 0xff );
+ 317   2          }
+ 318   1      
+ 319   1          Image_Ram[Page][Column] = Font_Byte_Data;//回送显示数据至OLED_Module_Image_Ram
+ 320   1      }
+ 321          
+ 322          //从映像RAM中读一个点，坐标为 x,y
+ 323          unsigned char Read_Font_Bit_Form_Image_Ram(unsigned char x,unsigned char y)
+ 324          {
+ 325   1          unsigned char Font_Bit,Font_Byte_Data, Font_Byte_Bits;
+ 326   1          unsigned char Page, Column;
+ 327   1        
+ 328   1          Column = x % 128;
+ 329   1          Page =( y / 8)%8;
+ 330   1          Font_Byte_Bits = y % 8;
+ 331   1      
+ 332   1          Font_Byte_Data =Image_Ram[Page][Column];
+ 333   1      
+ 334   1        Font_Bit=(Font_Byte_Data>>Font_Byte_Bits)&0x01;
+ 335   1      
+ 336   1        return Font_Bit;
+ 337   1      }
+ 338          
+ 339          
+ 340          
+ 341          //  将指针Bmp_Pointer指向的点阵数组以行=M,列=N格式写入指定映像RAM（0，1，2，3）中
+ 342          /*          M=16,N=20 Bmp字节数=M*((N+7)/8)=48
+ 343          
+ 344                N=1  2  3  4  5  6  7  8  9  10 11 12 13 14 15 16 17 18 19 20 
+ 345          
+ 346            (x,y) |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | |---无效----|
+ 347                \
+ 348               \         BYTE0                   BYTE1                   BYTE3
+ 349          M=1 ->  D7 D6 D5 D4 D3 D2 D1 D0 D7 D6 D5 D4 D3 D2 D1 D0 D7 D6 D5 D4 D3 D2 D1 D0 
+ 350                         BYTE4                   BYTE5                   BYTE6
+ 351          M=2 ->  D7 D6 D5 D4 D3 D2 D1 D0 D7 D6 D5 D4 D3 D2 D1 D0 D7 D6 D5 D4 D3 D2 D1 D0 
+ 352                           .                       .                       . 
+ 353                           .                       .                       .
+ 354                           .                       .                       .
+ 355                         BYTE42                  BYTE43                  BYTE44
+ 356          M=15->  D7 D6 D5 D4 D3 D2 D1 D0 D7 D6 D5 D4 D3 D2 D1 D0 D7 D6 D5 D4 D3 D2 D1 D0 
+ 357                         BYTE45                  BYTE46                  BYTE47
+ 358          M=16->  D7 D6 D5 D4 D3 D2 D1 D0 D7 D6 D5 D4 D3 D2 D1 D0 D7 D6 D5 D4 D3 D2 D1 D0 
+ 359          */
+C51 COMPILER V9.59.0.0   OLED_SSD1306                                                      12/18/2018 19:32:44 PAGE 7   
+
+ 360          void Write_Bmp_MxN_To_Image_Ram(unsigned char x,unsigned char y,unsigned char M,unsigned char N,unsigned c
+             -har *Bmp_Pointer)
+ 361          {
+ 362   1          unsigned char Bmp_Data;
+ 363   1          unsigned i,j,k;
+ 364   1          unsigned char Col_Bytes;
+ 365   1          unsigned char Mask[8]= {128,64,32,16,8,4,2,1};
+ 366   1      
+ 367   1      
+ 368   1          Col_Bytes=(N+7)/8;
+ 369   1      
+ 370   1          for ( i = 0; i < M; i++ )
+ 371   1          {
+ 372   2              for ( j = 0; j < Col_Bytes; j++ )
+ 373   2              {
+ 374   3                  Bmp_Data=*Bmp_Pointer;
+ 375   3                  Bmp_Pointer++;
+ 376   3                  for (k=0; k<8; k++)
+ 377   3                  {
+ 378   4                      if ((j*8+k)>=N)
+ 379   4                      {
+ 380   5                          break;
+ 381   5                      }
+ 382   4                      if ((Bmp_Data&Mask[k])!=0)
+ 383   4                      {
+ 384   5                          Write_Point_To_Image_Ram(x+j*8+k,y+i,1);
+ 385   5                      }
+ 386   4                      else
+ 387   4                      {
+ 388   5                          Write_Point_To_Image_Ram(x+j*8+k,y+i,0);
+ 389   5                      }
+ 390   4                  }
+ 391   3              }
+ 392   2          }
+ 393   1      
+ 394   1      }
+ 395          
+ 396          
+ 397          
+ 398          
+ 399          
+ 400          
+ 401          
+ 402          
+ 403          
+ 404          
+ 405          //字符串左对齐
+ 406          //unsigned char *Signed_Long_to_Dec_String(signed long Long_Data,unsigned char *Out_Dec_String,unsigned ch
+             -ar Num_Bits)
+ 407          //{
+ 408          //    unsigned char i,*Char_Pointer;
+ 409          //    unsigned char String_Len;
+ 410          //    unsigned long Temp_Long_Data;
+ 411          //    unsigned char Temp_String[20];//0xffffffff = 4,294,967,295
+ 412          //  
+ 413          
+ 414          //  //按Num_Bits填充空格
+ 415          //    Char_Pointer=Temp_String;
+ 416          //  for ( i=0;i<Num_Bits;i++ )
+ 417          //    {
+ 418          //        *(Out_Dec_String+i)=' ';
+ 419          //    *Char_Pointer=' ';
+C51 COMPILER V9.59.0.0   OLED_SSD1306                                                      12/18/2018 19:32:44 PAGE 8   
+
+ 420          //        Char_Pointer++;
+ 421          //    }
+ 422          //    *Char_Pointer=0x00;//字符串结束
+ 423          //  *(Out_Dec_String+i)=0x00;//字符串结束
+ 424          //  
+ 425          //    //从个位开始逐位转换
+ 426          //    Temp_Long_Data=abs(Long_Data);//取数据的绝对值
+ 427          //     for ( i=0;i<10;i++ )
+ 428          //    {
+ 429          //    Temp_String[i]=Temp_Long_Data%10+'0';
+ 430          //    Temp_Long_Data=(Temp_Long_Data/10);
+ 431          //    
+ 432          //    if (Temp_Long_Data==0)
+ 433          //      break;
+ 434          //    }
+ 435          //  String_Len=i;
+ 436          //  
+ 437          //    //Temp_String[]清零，加”“或”-“
+ 438          //    if (Long_Data>=0)
+ 439          //  {
+ 440          //    *Out_Dec_String=' ';
+ 441          //  }
+ 442          //  else
+ 443          //  {
+ 444          //    *Out_Dec_String='-';
+ 445          //  }
+ 446          
+ 447          //  //倒序字符串Temp_String[i]  
+ 448          //    for ( i=0;i<String_Len+1;i++ )
+ 449          //    {
+ 450          //    *(Out_Dec_String+i+1)=Temp_String[String_Len-i];
+ 451          //    }
+ 452          //    
+ 453          //    return Out_Dec_String;
+ 454          //}
+ 455          
+ 456          void OLED_SSD1306_Test(void)
+ 457          {
+ 458   1      //    unsigned char Recv_Cmd; 
+ 459   1      //    P6M0&=0xe0;
+ 460   1      //    P6M1&=0xe0;
+ 461   1      
+ 462   1      
+ 463   1      //    printf("\nOLED_SSD1306测试 按ESC键退出!\n");   
+ 464   1      //    Init_OLED_SSD1306();
+ 465   1      //    Full_Image_Ram(0,0);
+ 466   1      //    Delay_Ms(100);
+ 467   1      //    Clear_OLED_Display(0);
+ 468   1      //    Delay_Ms(100);
+ 469   1      
+ 470   1      //    Write_Bmp_MxN_To_Image_Ram(0,16,0,16,16,HZ_Bmp0);
+ 471   1      //    Write_Bmp_MxN_To_Image_Ram(0,32,0,16,16,HZ_Bmp1);
+ 472   1      //    Write_Bmp_MxN_To_Image_Ram(0,80,0,16,16,HZ_Bmp2);
+ 473   1      //    Write_Bmp_MxN_To_Image_Ram(0,96,0,16,16,HZ_Bmp3);
+ 474   1      //    
+ 475   1      //    Write_HZ_ASC_String_TO_OLED(0,0,16,14,"AD1=");
+ 476   1      //    Write_HZ_ASC_String_TO_OLED(0,28,18,12,"0xFFF");
+ 477   1      //    Write_HZ_ASC_String_TO_OLED(0,64,16,14,"AD2=");
+ 478   1      //    Write_HZ_ASC_String_TO_OLED(0,64+28,18,12,"0xFFF");
+ 479   1      
+ 480   1      //    Write_HZ_ASC_String_TO_OLED(0,0,16+16,14,"AD3=");
+ 481   1      //    Write_HZ_ASC_String_TO_OLED(0,28,18+16,12,"0xFFF");
+C51 COMPILER V9.59.0.0   OLED_SSD1306                                                      12/18/2018 19:32:44 PAGE 9   
+
+ 482   1      //    Write_HZ_ASC_String_TO_OLED(0,64,16+16,14,"AD4=");
+ 483   1      //    Write_HZ_ASC_String_TO_OLED(0,64+28,18+16,12,"0xFFF");
+ 484   1      
+ 485   1      //Write_HZ_ASC_String_TO_OLED_SSD1306(HZ_16x16,48,0,"电阻");//用SST25VF032b中的字库
+ 486   1      
+ 487   1      ////   Write_HZ_ASC_String_TO_OLED(0,0,0,16,"1234");
+ 488   1      ////    delay_ms(100);
+ 489   1      ////    Write_HZ_ASC_String_TO_OLED(0,0,16,14,"5678");
+ 490   1      ////    Write_HZ_ASC_String_TO_OLED(0,0,32,12,"2345bcd");
+ 491   1      ////    Write_HZ_ASC_String_TO_OLED(0,0,48,8,"7890efgh");
+ 492   1      //   // Clear_OLED_Display(0);    
+ 493   1      //    //String_Out("选择进入信号灯后，进入指定灯位操作\n");
+ 494   1      //    
+ 495   1      
+ 496   1      //    Write_Bmp_MxN_To_Image_Ram(0,0,48,16,32,JDQ_Bmp00);
+ 497   1      //    Write_Bmp_MxN_To_Image_Ram(0,32,48,16,32,JDQ_Bmp01);
+ 498   1      //    Write_Bmp_MxN_To_Image_Ram(0,64,48,16,32,JDQ_Bmp10);
+ 499   1      //    Write_Bmp_MxN_To_Image_Ram(0,96,48,16,32,JDQ_Bmp11);
+ 500   1      
+ 501   1      //    Refresh_Image_Ram_To_OLED_Display(0,0);
+ 502   1      
+ 503   1      //    
+ 504   1      //    while (1)
+ 505   1      //    {
+ 506   1      //        Get_Adc_Value_To_OLED_UART(0);
+ 507   1      //        Delay_Ms(100);
+ 508   1      //        Get_Adc_Value_To_OLED_UART(1);
+ 509   1      //        Delay_Ms(100);
+ 510   1      //        Get_Adc_Value_To_OLED_UART(2);
+ 511   1      //        Delay_Ms(100);
+ 512   1      //        Get_Adc_Value_To_OLED_UART(3);
+ 513   1      //        Delay_Ms(100);
+ 514   1      //        Get_Adc_Value_To_OLED_UART(4);
+ 515   1      //        Delay_Ms(100);
+ 516   1      
+ 517   1      //         
+ 518   1      //        if(Recv_End==1)
+ 519   1      //        {
+ 520   1      //            Recv_Cmd=Serial_In();
+ 521   1      //            if (Recv_Cmd==0x1b)
+ 522   1      //            {
+ 523   1      //                printf("退出OLED_SSD1306测试 !\n");
+ 524   1      //                Clear_OLED_Display(0);               
+ 525   1      //                return ;
+ 526   1      //            }
+ 527   1      //        }
+ 528   1      //    }
+ 529   1      
+ 530   1      }
+ 531          
+ 532          
+ 533          
+ 534          void Write_HZ_ASC_String_TO_OLED_SSD1306(unsigned char Font_Num,unsigned char x,unsigned char y,unsigned c
+             -har *HZ_ASC_String_Pointer)
+ 535          {
+ 536   1          unsigned char M,N;
+ 537   1          unsigned int Font_Width,HZ_ASC_Code;  
+ 538   1          unsigned char HZ_Font_Num,A_Font_Num;
+ 539   1          HZ_Font_Num=A_Font_Num=Font_Num;
+ 540   1           switch(Font_Num)
+ 541   1           {
+ 542   2            case  HZ_12x12: A_Font_Num=ASCII_6x12;break;
+C51 COMPILER V9.59.0.0   OLED_SSD1306                                                      12/18/2018 19:32:44 PAGE 10  
+
+ 543   2            case  HZ_16x16: A_Font_Num=ASCII_8x16;break;
+ 544   2            case  HZ_24x24: A_Font_Num=ASCII_12x24;break;
+ 545   2            case  HZ_32x32: A_Font_Num=ASCII_16x32;break;
+ 546   2            case  HZ_EXT_CHAR_6x12: A_Font_Num=ASCII_6x12;break;
+ 547   2            case  ASCII_6x12: 
+ 548   2            case  ASC_Arial_12: 
+ 549   2            case  ASC_Time_12: HZ_Font_Num=HZ_12x12;break;
+ 550   2            case  HZ_EXT_CHAR_8x16: 
+ 551   2            case  ASCII_8x16:HZ_Font_Num=HZ_16x16;break;
+ 552   2            case  ASCII_5x7:
+ 553   2            case  ASCII_7x8:HZ_Font_Num=HZ_12x12;break;
+ 554   2            case  ASC_Arial_16:
+ 555   2            case  ASC_Time_16:HZ_Font_Num=HZ_32x32;break;
+ 556   2            case  HZ_EXT_CHAR_12x24:A_Font_Num=ASCII_12x24;break;
+ 557   2            case  ASCII_12x24:
+ 558   2            case  ASC_Arial_24:
+ 559   2            case  ASC_Time_24:HZ_Font_Num=HZ_24x24;break;
+ 560   2            case  HZ_EXT_CHAR_16x32:A_Font_Num=ASCII_16x32;break;
+ 561   2            case  ASCII_16x32:
+ 562   2            case  ASC_Arial_32:
+ 563   2            case  ASC_Time_32:HZ_Font_Num=HZ_32x32;break;
+ 564   2            case  HZ_SPECIAL_CHAR_8x16:A_Font_Num=ASCII_8x16;break;
+ 565   2            default:break;
+ 566   2          }
+ 567   1            
+ 568   1          x=x%MAX_X;y=y%MAX_Y;
+ 569   1          while (*HZ_ASC_String_Pointer!='\0')
+ 570   1          {
+ 571   2              HZ_ASC_Code=*HZ_ASC_String_Pointer;
+ 572   2              if (HZ_ASC_Code>=0x80)
+ 573   2              {
+ 574   3                  HZ_ASC_Code<<=8;
+ 575   3                  HZ_ASC_String_Pointer++;
+ 576   3                  HZ_ASC_Code+=(*HZ_ASC_String_Pointer);
+ 577   3                  Font_Num=HZ_Font_Num;
+ 578   3              }
+ 579   2              else
+ 580   2                Font_Num=A_Font_Num;
+ 581   2              Font_Width=Read_Font_Lib(Font_Num,HZ_ASC_Code,Font_Buffer);
+ 582   2              M=(Font_Width>>8)&0xff;
+ 583   2              N=Font_Width&0xff;
+ 584   2              Font_Width=N;
+ 585   2              if ((x+Font_Width)>=MAX_X)//根据返回点阵的宽度判断是否应换行
+ 586   2              {
+ 587   3                x=0;y=(y+M)%MAX_Y;      
+ 588   3              }   
+ 589   2            
+ 590   2              Write_Bmp_MxN_To_Image_Ram(x,y,M,N,Font_Buffer);  //写点阵至指定映像RAM   
+ 591   2      
+ 592   2              Refresh_Part_Image_Ram_To_OLED_Display(x,y,M,N);  //将更新部分映像RAM刷新至OLED模块显示
+ 593   2              HZ_ASC_String_Pointer++;
+ 594   2              
+ 595   2              x=x+Font_Width;//根据当前字符的宽度确定下一个字符的起始x坐标
+ 596   2              
+ 597   2              if (x>=MAX_X)//根据下一个字符的起始x坐标判断是否应换行
+ 598   2              {
+ 599   3                x=0;y=(y+M)%MAX_Y;      
+ 600   3              }   
+ 601   2        } 
+ 602   1      }
+ 603          
+ 604          
+C51 COMPILER V9.59.0.0   OLED_SSD1306                                                      12/18/2018 19:32:44 PAGE 11  
+
+ 605          
+ 606          
+ 607          
+ 608          
+ 609          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   1750    ----
+   CONSTANT SIZE    =      8    ----
+   XDATA SIZE       =   1024      51
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

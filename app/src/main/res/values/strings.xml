@@ -1,0 +1,20 @@
+<resources>
+    <string name="app_name">BLEHelper</string>
+    <string name="search_device">查找设备</string>
+    <string name="light">灯</string>
+    <string name="time">时间</string>
+    <string name="music">音乐</string>
+    <string name="motor">风扇</string>
+    <string name="gear">档位</string>
+    <string name="synchronization">同步当前时间</string>
+    <string name="time_setting">设置时间</string>
+    <string name="time_hint">例如152036</string>
+    <string name="music_1">音乐1</string>
+    <string name="music_2">音乐2</string>
+    <string name="music_3">音乐3</string>
+    <string name="music_off">关闭</string>
+    <string name="music_pause">暂停/播放</string>
+    <string name="dht_on_off">DHT开启/关闭</string>
+
+
+</resources>
